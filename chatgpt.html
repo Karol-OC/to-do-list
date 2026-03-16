@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>To Do List</title>
+<style>
+body{
+    font-family: Arial;
+}
+
+li{
+    margin:5px 0;
+}
+
+button{
+    margin-left:10px;
+}
+</style>
+</head>
+<body>
+
+<h2>To Do List</h2>
+
+<input id="taskInput" type="text">
+<button id="addBtn">Agregar</button>
+
+<ul id="taskList"></ul>
+
+<script>
+
+const input = document.getElementById("taskInput")
+const button = document.getElementById("addBtn")
+const list = document.getElementById("taskList")
+
+let tasks = JSON.parse(localStorage.getItem("tasks")) || []
+
+function saveTasks(){
+    localStorage.setItem("tasks", JSON.stringify(tasks))
+}
+
+function renderTasks(){
+
+    list.innerHTML = ""
+
+    tasks.forEach((task, index) => {
+
+        const li = document.createElement("li")
+        li.textContent = task
+
+        const del = document.createElement("button")
+        del.textContent = "Eliminar"
+
+        del.onclick = () => {
+            tasks.splice(index,1)
+            saveTasks()
+            renderTasks()
+        }
+
+        li.appendChild(del)
+        list.appendChild(li)
+
+    })
+}
+
+button.onclick = () => {
+
+    const task = input.value.trim()
+
+    if(task){
+
+        tasks.push(task)
+        saveTasks()
+        renderTasks()
+
+        input.value = ""
+    }
+
+}
+
+renderTasks()
+
+</script>
+
+</body>
+</html>
