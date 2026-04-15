@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #eee;
+        }
+        .container {
+            background-color: #fff;
+            margin: 48px auto;
+            padding: 16px;
+            border-radius: 12px;
+            width: 350px;
+            max-width: 95%;
+            box-shadow: 0 0 12px rgba(0, 0, 0, .1);
+        }
+        .add {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+        }
+        input {
+            padding: 6px;
+            width: 180px;
+            flex-grow: 1;
+        }
+        button {
+            padding: 6px;
+            width: 80px;
+            flex-grow: 1;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: solid 1px #ddd;
+            margin-bottom: 8px;
+            padding: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>To-do list</h2>
+        <div class="add">
+            <input type="text" id="input" placeholder="New task">
+            <button id="button">Add</button>
+        </div>
+        
+        <ul id="ul"></ul>
+    </div>
+
+    <script type="module">
+        // 1. Importar las funciones de Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // 2. Pega aquí la configuración de tu proyecto de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBdsQWRj3ZFTiQETyhIUX9YBOZYYyTpq5s",
+            authDomain: "to-do-list-7cf6c.firebaseapp.com",
+            projectId: "to-do-list-7cf6c",
+            storageBucket: "to-do-list-7cf6c.firebasestorage.app",
+            messagingSenderId: "1015743308584",
+            appId: "1:1015743308584:web:40de53747761e16eb6661d"
+        };
+
+        // 3. Inicializar Firebase y la base de datos Firestore
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Referencias al DOM
+        const input = document.getElementById('input');
+        const button = document.getElementById('button');
+        const ul = document.getElementById('ul');
+
+        // Referencia a la colección "tasks" en tu base de datos
+        const tasksCollection = collection(db, 'tasks');
+
+        // 4. Escuchar cambios en TIEMPO REAL (Reemplaza a tu renderTasks y localStorage)
+        // onSnapshot se ejecuta automáticamente cada vez que alguien agrega o borra una tarea
+        onSnapshot(tasksCollection, (snapshot) => {
+            ul.innerHTML = ""; // Limpiamos la lista antes de volver a pintarla
+            
+            snapshot.forEach((docSnap) => {
+                const taskData = docSnap.data();
+                const taskId = docSnap.id; // Firestore crea un ID único para cada tarea
+
+                const li = document.createElement('li');
+                li.textContent = taskData.text; 
+
+                const del = document.createElement('span');
+                del.textContent = '❌';
+
+                // 5. Lógica para borrar de Firebase
+                del.onclick = async () => {
+                    await deleteDoc(doc(db, "tasks", taskId));
+                };
+
+                li.appendChild(del);
+                ul.appendChild(li);
+            });
+        });
+
+        // 6. Lógica para agregar a Firebase
+        button.addEventListener('click', async () => {
+            const taskText = input.value.trim();
+
+            if (taskText) {
+                // Guardamos la tarea en Firestore
+                await addDoc(tasksCollection, {
+                    text: taskText,
+                    createdAt: new Date() // Útil si después quieres ordenar por fecha
+                });
+                
+                input.value = ''; // Limpiamos el input (la lista se actualiza sola gracias a onSnapshot)
+            }
+        });
+
+        // Registrar service worker
+        if('serviceWorker' in navigator){
+            navigator.serviceWorker.register('sw.js')
+            .then(()=>console.log("SW registrado"))
+            .catch((err)=>console.log("Error en SW:", err));
+        }
+    </script>
+</body>
+</html>
