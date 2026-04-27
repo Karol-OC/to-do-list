@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #eee;
+        }
+        .container {
+            background-color: #fff;
+            margin: 48px auto;
+            padding: 16px;
+            border-radius: 12px;
+            width: 350px;
+            max-width: 95%;
+            box-shadow: 0 0 12px rgba(0, 0, 0, .1);
+        }
+        .auth {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .add {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+        }
+        input {
+            padding: 6px;
+            width: 180px;
+            flex-grow: 1;
+        }
+        button {
+            padding: 6px;
+            width: 80px;
+            flex-grow: 1;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: solid 1px #ddd;
+            margin-bottom: 8px;
+            padding: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>To-do list</h2>
+        <div class="auth">
+            <button id="auth-button" type="button">Iniciar sesión con Google</button>
+            <span id="user-info">No has iniciado sesión</span>
+        </div>
+        <div class="add">
+            <input type="text" id="input" placeholder="New task">
+            <button id="button" type="button">Add</button>
+        </div>
+        
+        <ul id="ul"></ul>
+    </div>
+
+    <script type="module">
+        // 1. Importar las funciones de Firebase SDK
+        // initializeApp: inicializa Firebase con tu configuración.
+        // getFirestore: devuelve el cliente de Firestore.
+        // getAuth: devuelve el cliente de autenticación.
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+        // 2. Configuración del proyecto Firebase
+        // Estos datos los obtienes en Firebase Console > Configuración del proyecto.
+        const firebaseConfig = {
+            apiKey: "AIzaSyBdsQWRj3ZFTiQETyhIUX9YBOZYYyTpq5s",
+            authDomain: "to-do-list-7cf6c.firebaseapp.com",
+            projectId: "to-do-list-7cf6c",
+            storageBucket: "to-do-list-7cf6c.firebasestorage.app",
+            messagingSenderId: "1015743308584",
+            appId: "1:1015743308584:web:40de53747761e16eb6661d"
+        };
+
+        // 3. Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app); // Conexión a Firestore
+        const auth = getAuth(app); // Conexión a Auth
+        const provider = new GoogleAuthProvider(); // Proveedor para Google Sign-In
+
+        // Variables globales para el usuario y la suscripción de tareas
+        let currentUser = null;
+        let unsubscribeTasks = null;
+
+        // Referencias a elementos del HTML
+        const input = document.getElementById('input');
+        const button = document.getElementById('button');
+        const ul = document.getElementById('ul');
+        const authButton = document.getElementById('auth-button');
+        const userInfo = document.getElementById('user-info');
+
+        // Colección Firestore donde se guardan las tareas
+        const tasksCollection = collection(db, 'tasks');
+
+        // Esta función inicia la escucha en tiempo real de las tareas del usuario.
+        function listenUserTasks(uid) {
+            // Query: solo traemos las tareas que tengan userId igual al id del usuario.
+            const tasksQuery = query(tasksCollection, where('userId', '==', uid));
+
+            unsubscribeTasks = onSnapshot(tasksQuery, (snapshot) => {
+                ul.innerHTML = ""; // Limpiar la lista antes de pintar de nuevo
+
+                snapshot.forEach((docSnap) => {
+                    const taskData = docSnap.data(); // Datos de la tarea
+                    const taskId = docSnap.id; // ID del documento
+
+                    const li = document.createElement('li');
+                    li.textContent = taskData.text; // Mostrar solo el texto
+
+                    const del = document.createElement('span');
+                    del.textContent = '❌';
+                    del.style.cursor = 'pointer';
+
+                    // Botón para borrar la tarea en Firestore
+                    del.onclick = async () => {
+                        await deleteDoc(doc(db, 'tasks', taskId));
+                    };
+
+                    li.appendChild(del);
+                    ul.appendChild(li);
+                });
+            }, (error) => {
+                console.error('Error escuchando tareas:', error);
+                alert('Error al cargar tareas: ' + error.message);
+            });
+        }
+
+        // Esta función se ejecuta cuando cambia el estado de autenticación.
+        onAuthStateChanged(auth, (user) => {
+            if (unsubscribeTasks) {
+                unsubscribeTasks();
+                unsubscribeTasks = null;
+            }
+
+            ul.innerHTML = ''; // Limpiar lista al cambiar de usuario o al cerrar sesión
+
+            if (user) {
+                // Si hay usuario, activamos la app para él
+                currentUser = user;
+                authButton.textContent = 'Cerrar sesión';
+                userInfo.textContent = user.email;
+                button.disabled = false;
+                listenUserTasks(user.uid); // Escuchar solo tareas de este usuario
+            } else {
+                // Si no hay usuario, desactivamos botones y mostramos mensaje
+                currentUser = null;
+                authButton.textContent = 'Iniciar sesión con Google';
+                userInfo.textContent = 'No has iniciado sesión';
+                button.disabled = true;
+            }
+        });
+
+        // Evento del botón de autenticación
+        authButton.addEventListener('click', async () => {
+            if (auth.currentUser) {
+                // Si el usuario ya está logueado, cerramos sesión
+                await signOut(auth);
+                return;
+            }
+
+            try {
+                // Abrir ventana de Google para iniciar sesión
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error('Error en inicio de sesión:', error);
+                alert('Error al iniciar sesión: ' + error.message);
+            }
+        });
+
+        // Evento del botón para agregar una nueva tarea
+        button.addEventListener('click', async () => {
+            const taskText = input.value.trim(); // Texto ingresado por el usuario
+
+            if (!currentUser) {
+                alert('Inicia sesión para guardar tus tareas.');
+                return;
+            }
+
+            if (taskText) {
+                // Guardar tarea en Firestore con el userId del usuario actual
+                await addDoc(tasksCollection, {
+                    text: taskText,
+                    createdAt: serverTimestamp(),
+                    userId: currentUser.uid
+                });
+
+                input.value = ''; // Limpiar campo de texto
+            }
+        });
+
+        // Registrar service worker para la PWA
+        if('serviceWorker' in navigator){
+            navigator.serviceWorker.register('sw.js')
+            .then(()=>console.log("SW registrado"))
+            .catch((err)=>console.log("Error en SW:", err));
+        }
+    </script>
+</body>
+</html>
